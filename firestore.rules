@@ -1,36 +1,50 @@
 rules_version = '2';
 
 // Paste this into Firebase console → Firestore Database → Rules → Publish.
-//  • Anyone can VIEW memories (so the site works for visitors).
-//  • Only signed-in @chitkara.edu.in Google accounts can ADD or HEART them.
-//  • You can delete your own photos; admins can delete anything.
-// If you change the email domain, year ids or admins in js/config.js, change them here too.
+//  • Nothing is visible without signing in with an @chitkara.edu.in Google account.
+//  • Admins (list below) can sign in with any email, see all activity, delete anything and ban users.
+//  • Banned users can't read or write anything.
+//  • Every login, upload, download, like, report and delete goes into /activity (admins only can read it).
+// Keep ADMINS identical to ADMIN_EMAILS in js/config.js (all lowercase).
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function signedIn() {
-      return request.auth != null;
+      return request.auth != null && request.auth.token.email != null;
     }
-    function isStudent() {
-      return signedIn()
-        && request.auth.token.email_verified == true
-        && request.auth.token.email.lower().matches('.*@chitkara[.]edu[.]in$');
+    function email() {
+      return request.auth.token.email.lower();
     }
     function isAdmin() {
-      return signedIn() && request.auth.token.email.lower() in [
-        // 'yourname@chitkara.edu.in'
-      ];
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && email() in [
+          'kiratveersinghralhan@gmail.com'
+        ];
+    }
+    function isMember() {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && (email().matches('.*@chitkara[.]edu[.]in$') || isAdmin());
+    }
+    function notBanned() {
+      return !exists(/databases/$(database)/documents/banned/$(request.auth.uid));
+    }
+    function isActive() {
+      return isMember() && notBanned();
     }
 
+    // ── photos ──
     match /memories/{memoryId} {
-      allow read: if true;
+      allow read: if isActive();
 
-      allow create: if isStudent()
+      allow create: if isActive()
         && request.resource.data.keys().hasOnly([
              'url', 'thumb', 'w', 'h', 'caption', 'year', 'event', 'people',
-             'uploaderUid', 'uploaderName', 'uploaderPhoto', 'likedBy', 'createdAt'])
+             'uploaderUid', 'uploaderName', 'uploaderEmail', 'uploaderPhoto', 'likedBy', 'createdAt'])
         && request.resource.data.uploaderUid == request.auth.uid
+        && request.resource.data.uploaderEmail == request.auth.token.email
         && request.resource.data.createdAt == request.time
         && request.resource.data.likedBy == []
         && request.resource.data.url is string && request.resource.data.url.size() <= 500
@@ -41,8 +55,8 @@ service cloud.firestore {
         && request.resource.data.people is list && request.resource.data.people.size() <= 20
         && request.resource.data.uploaderName is string && request.resource.data.uploaderName.size() <= 60;
 
-      // Hearts: a student may only add or remove their OWN uid from likedBy.
-      allow update: if isStudent()
+      // Hearts: a student may only add or remove their OWN uid.
+      allow update: if isActive()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy'])
         && (
           (!(request.auth.uid in resource.data.likedBy)
@@ -52,21 +66,65 @@ service cloud.firestore {
             && request.resource.data.likedBy == resource.data.likedBy.removeAll([request.auth.uid]))
         );
 
-      allow delete: if signedIn()
-        && (resource.data.uploaderUid == request.auth.uid || isAdmin());
+      allow delete: if isAdmin() || (isActive() && resource.data.uploaderUid == request.auth.uid);
     }
 
-    // Full-size photos (only used when Cloudinary isn't configured).
-    // Loaded only when someone opens a memory, which keeps the free plan happy.
+    // Full-size photos (used when Cloudinary isn't configured).
     match /memoryFull/{memoryId} {
-      allow read: if true;
-      allow create: if isStudent()
+      allow read: if isActive();
+      allow create: if isActive()
         && request.resource.data.keys().hasOnly(['data', 'uploaderUid'])
         && request.resource.data.uploaderUid == request.auth.uid
         && request.resource.data.data is string
         && request.resource.data.data.size() < 1000000;
-      allow delete: if signedIn()
-        && (resource.data.uploaderUid == request.auth.uid || isAdmin());
+      allow delete: if isAdmin() || (isActive() && resource.data.uploaderUid == request.auth.uid);
+    }
+
+    // ── user profiles (for the admin panel) ──
+    match /users/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create: if isMember() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'email', 'photo', 'device', 'firstSeen', 'lastSeen', 'logins'])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.firstSeen == request.time
+        && request.resource.data.lastSeen == request.time
+        && request.resource.data.logins == 1;
+      allow update: if isMember() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'photo', 'device', 'lastSeen', 'logins'])
+        && request.resource.data.lastSeen == request.time
+        && (request.resource.data.logins == resource.data.logins
+            || request.resource.data.logins == resource.data.logins + 1);
+      allow delete: if isAdmin();
+    }
+
+    // ── activity log: write-only for students, read-only for admins ──
+    match /activity/{id} {
+      allow create: if isActive()
+        && request.resource.data.keys().hasOnly([
+             'type', 'uid', 'email', 'name', 'device', 'memoryId', 'memoryCaption',
+             'ownerUid', 'ownerName', 'detail', 'at'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.at == request.time
+        && request.resource.data.type in ['login', 'upload', 'download', 'like', 'unlike', 'delete', 'report', 'ban', 'unban']
+        && request.resource.data.detail is string && request.resource.data.detail.size() <= 200;
+      allow read, delete: if isAdmin();
+    }
+
+    // ── reports from students ──
+    match /reports/{id} {
+      allow create: if isActive()
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.reporterEmail == request.auth.token.email
+        && request.resource.data.at == request.time
+        && request.resource.data.note is string && request.resource.data.note.size() <= 300;
+      allow read, delete: if isAdmin();
+    }
+
+    // ── banned users ──
+    match /banned/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow write: if isAdmin();
     }
   }
 }

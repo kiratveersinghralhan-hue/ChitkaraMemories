@@ -143,6 +143,45 @@ function pumpImages() {
   }
 }
 
+// Sample points from the "CU" monogram (drawn on a canvas) plus a ring around it.
+function buildLogoTargets(letterCount = 1500, ringCount = 560) {
+  const W = 512; const H = 256;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  g.fillStyle = "#fff";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.font = '700 220px "Space Grotesk", "Arial Black", system-ui, sans-serif';
+  g.fillText("CU", W / 2, H / 2 + 10);
+  const data = g.getImageData(0, 0, W, H).data;
+  const raw = [];
+  for (let y = 0; y < H; y += 2) {
+    for (let x = 0; x < W; x += 2) {
+      if (data[(y * W + x) * 4 + 3] > 140) raw.push([x, y]);
+    }
+  }
+  const scale = 8.2 / W;
+  const out = [];
+  if (raw.length) {
+    for (let i = 0; i < letterCount; i++) {
+      const [px, py] = raw[(Math.random() * raw.length) | 0];
+      out.push({
+        x: (px - W / 2 + (Math.random() - 0.5) * 2) * scale,
+        y: -(py - H / 2 + (Math.random() - 0.5) * 2) * scale,
+        z: (Math.random() - 0.5) * 0.8,
+        ring: false,
+      });
+    }
+  }
+  for (let i = 0; i < ringCount; i++) {
+    const a = (i / ringCount) * Math.PI * 2 + Math.random() * 0.01;
+    const r = 3.95 + (Math.random() - 0.5) * 0.28;
+    out.push({ x: Math.cos(a) * r, y: Math.sin(a) * r, z: (Math.random() - 0.5) * 0.35, ring: true, angle: a });
+  }
+  return out;
+}
+
 export function createScene(container, { years = [], coreLabel = "", onSelect = () => {}, onHover = () => {} } = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -154,12 +193,14 @@ export function createScene(container, { years = [], coreLabel = "", onSelect = 
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x0a0820, 0.012);
   const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 700);
-  camera.position.set(0, 50, 140);
+  const INTRO_POS = new THREE.Vector3(0, 0.2, 17);
+  camera.position.set(0, 0.6, 24);
 
   const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enabled = false;
   controls.enableDamping = true;
   controls.dampingFactor = 0.07;
-  controls.autoRotate = true;
+  controls.autoRotate = false;
   controls.autoRotateSpeed = 0.45;
   controls.minDistance = 4;
   controls.maxDistance = 120;
@@ -191,25 +232,138 @@ export function createScene(container, { years = [], coreLabel = "", onSelect = 
   const dust = starField(1000, 6, 80, 0.32, 0.75);
   scene.add(stars, dust);
 
-  // ── glowing core ──
+  // ── lights (only the 3D logo uses lit materials) ──
+  scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+  const lightA = new THREE.PointLight(0xff4d6d, 140, 60); lightA.position.set(7, 5, 10);
+  const lightB = new THREE.PointLight(0x7c5cff, 140, 60); lightB.position.set(-8, -4, 8);
+  const lightC = new THREE.PointLight(0x2de2e6, 80, 60); lightC.position.set(0, 7, -6);
+  scene.add(lightA, lightB, lightC);
+
+  // ── 3D shard logo: ~2,000 pieces fly in and assemble into the CU medallion ──
   const core = new THREE.Group();
-  const coreOuter = new THREE.Mesh(new THREE.IcosahedronGeometry(2.1, 1),
-    new THREE.MeshBasicMaterial({ color: 0x8b6cff, wireframe: true, transparent: true, opacity: 0.55 }));
-  const coreInner = new THREE.Mesh(new THREE.IcosahedronGeometry(1.15, 2),
-    new THREE.MeshBasicMaterial({ color: 0xff5c7c, wireframe: true, transparent: true, opacity: 0.85 }));
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: radialTexture("rgba(255,110,160,0.95)", "rgba(124,92,255,0)"),
-    blending: THREE.AdditiveBlending, depthWrite: false, transparent: true,
-  }));
-  glow.scale.set(11, 11, 1);
-  const ringA = new THREE.Mesh(new THREE.TorusGeometry(3.4, 0.018, 8, 160), new THREE.MeshBasicMaterial({ color: 0x2de2e6, transparent: true, opacity: 0.7 }));
-  const ringB = new THREE.Mesh(new THREE.TorusGeometry(4.1, 0.014, 8, 160), new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.55 }));
-  ringA.rotation.x = Math.PI / 2.4; ringB.rotation.x = Math.PI / 1.7; ringB.rotation.y = 0.5;
-  const coreText = textSprite(coreLabel, { size: 64, height: 1.05 });
-  coreText.position.y = -4.6;
-  core.add(glow, coreOuter, coreInner, ringA, ringB, coreText);
   scene.add(core);
+  const logo = new THREE.Group();
+  core.add(logo);
+
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: radialTexture("rgba(255,110,160,0.9)", "rgba(124,92,255,0)"),
+    blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0,
+  }));
+  glow.scale.set(13, 13, 1);
+  core.add(glow);
+
+  const targets = buildLogoTargets();
+  const N = targets.length;
+  const shardGeo = new THREE.TetrahedronGeometry(0.095, 0);
+  const shardMat = new THREE.MeshStandardMaterial({
+    metalness: 0.45, roughness: 0.28, flatShading: true, emissive: 0x24103a, emissiveIntensity: 0.9,
+  });
+  const shards = new THREE.InstancedMesh(shardGeo, shardMat, N);
+  shards.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  shards.frustumCulled = false;
+  const cPink = new THREE.Color("#ff4d6d"); const cMag = new THREE.Color("#c04dff");
+  const cViolet = new THREE.Color("#7c5cff"); const cCyan = new THREE.Color("#2de2e6");
+  const tmpC = new THREE.Color();
+  const pieces = targets.map((p, i) => {
+    if (p.ring) {
+      const k = p.angle / (Math.PI * 2);
+      tmpC.copy(cCyan).lerp(cViolet, Math.abs(k - 0.5) * 2);
+    } else {
+      const k = THREE.MathUtils.clamp((p.x + 2.7) / 5.4, 0, 1);
+      if (k < 0.5) tmpC.copy(cPink).lerp(cMag, k * 2); else tmpC.copy(cMag).lerp(cViolet, (k - 0.5) * 2);
+    }
+    shards.setColorAt(i, tmpC);
+    const dir = new THREE.Vector3().randomDirection();
+    const dist = 26 + Math.random() * 40;
+    const delay = p.ring
+      ? 1.0 + (p.angle / (Math.PI * 2)) * 0.9 + Math.random() * 0.2
+      : 0.1 + ((p.x + 2.7) / 5.4) * 0.9 + Math.random() * 0.35;
+    return {
+      t: new THREE.Vector3(p.x, p.y, p.z),
+      s: dir.multiplyScalar(dist),
+      delay,
+      spin: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(14),
+      rest: new THREE.Euler(Math.random() * 6.28, Math.random() * 6.28, Math.random() * 6.28),
+      size: (p.ring ? 0.55 : 0.75) + Math.random() * 0.8,
+      phase: Math.random() * 6.28,
+    };
+  });
+  shards.instanceColor.needsUpdate = true;
+  logo.add(shards);
+
+  const ringA = new THREE.Mesh(new THREE.TorusGeometry(5.0, 0.02, 8, 200), new THREE.MeshBasicMaterial({ color: 0x2de2e6, transparent: true, opacity: 0.7 }));
+  const ringB = new THREE.Mesh(new THREE.TorusGeometry(5.7, 0.015, 8, 200), new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.55 }));
+  ringA.rotation.x = Math.PI / 2.4; ringB.rotation.x = Math.PI / 1.7; ringB.rotation.y = 0.5;
+  ringA.scale.setScalar(0.001); ringB.scale.setScalar(0.001);
+  core.add(ringA, ringB);
+
+  // a one-off shockwave when the logo locks together
+  const shock = new THREE.Mesh(new THREE.RingGeometry(3.9, 4.15, 120),
+    new THREE.MeshBasicMaterial({ color: 0xffb3d0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  logo.add(shock);
+
+  const coreText = textSprite(coreLabel, { size: 64, height: 1.0 });
+  coreText.position.y = -5.4;
+  coreText.material.opacity = 0;
+  core.add(coreText);
   let coreTargetScale = 1;
+
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const INTRO_ASSEMBLE = 3.4;
+  const PIECE_DUR = 1.5;
+  let introClock = reduceMotion ? INTRO_ASSEMBLE + 2 : 0;
+  let resolveIntro;
+  const introDone = new Promise((r) => { resolveIntro = r; });
+  let introResolved = false;
+  const shardDummy = new THREE.Object3D();
+  const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+
+  function updateLogo(dt, t) {
+    introClock += dt;
+    const ic = introClock;
+    for (let i = 0; i < N; i++) {
+      const p = pieces[i];
+      const raw = THREE.MathUtils.clamp((ic - p.delay) / PIECE_DUR, 0, 1);
+      const e = easeInOut(raw);
+      const swirl = (1 - e) * 2.4;
+      let x = p.s.x + (p.t.x - p.s.x) * e;
+      let y = p.s.y + (p.t.y - p.s.y) * e;
+      let z = p.s.z + (p.t.z - p.s.z) * e;
+      const cs = Math.cos(swirl); const sn = Math.sin(swirl);
+      const rx = x * cs - z * sn; const rz = x * sn + z * cs;
+      x = rx; z = rz;
+      if (raw >= 1) z += Math.sin(t * 1.4 + p.phase) * 0.035;
+      shardDummy.position.set(x, y, z);
+      const k = 1 - e;
+      shardDummy.rotation.set(
+        p.rest.x + p.spin.x * k + Math.sin(t * 0.8 + p.phase) * 0.15,
+        p.rest.y + p.spin.y * k,
+        p.rest.z + p.spin.z * k,
+      );
+      shardDummy.scale.setScalar(p.size * (0.25 + 0.75 * e));
+      shardDummy.updateMatrix();
+      shards.setMatrixAt(i, shardDummy.matrix);
+    }
+    shards.instanceMatrix.needsUpdate = true;
+
+    // lock-in moment: glow burst, shockwave, rings, label
+    const after = ic - INTRO_ASSEMBLE;
+    const burst = after > 0 ? Math.exp(-after * 2.6) : 0;
+    const settled = THREE.MathUtils.clamp((ic - 1.2) / 2.2, 0, 1);
+    glow.material.opacity = settled * (0.55 + Math.sin(t * 1.7) * 0.12) + burst * 0.6;
+    const gs = 13 + burst * 10;
+    glow.scale.set(gs, gs, 1);
+    if (after > 0 && after < 1.4) {
+      const k = after / 1.4;
+      shock.scale.setScalar(1 + k * 2.6);
+      shock.material.opacity = (1 - k) * 0.9;
+    } else shock.material.opacity = 0;
+    const ringK = THREE.MathUtils.clamp((ic - (INTRO_ASSEMBLE - 0.4)) / 0.9, 0, 1);
+    const rs = Math.max(0.001, 1 - Math.pow(1 - ringK, 3));
+    ringA.scale.setScalar(rs); ringB.scale.setScalar(rs);
+    coreText.material.opacity = THREE.MathUtils.clamp((ic - INTRO_ASSEMBLE) / 0.8, 0, 1);
+    if (!introResolved && ic > INTRO_ASSEMBLE + 0.35) { introResolved = true; resolveIntro(); }
+  }
 
   // ── year labels for the timeline layout ──
   const yearSprites = years.map((y) => {
@@ -354,7 +508,15 @@ export function createScene(container, { years = [], coreLabel = "", onSelect = 
   }
 
   let lastFrame = null;
+  let revealed = false;
   function relayout(moveCamera) {
+    if (!revealed) {
+      cards.forEach((c) => { c.target.scale = 0.001; });
+      pickables = [];
+      coreTargetScale = 1;
+      yearSprites.forEach((ys) => { ys.targetOpacity = 0; });
+      return;
+    }
     const sorted = allItems.filter(filterFn).slice(0, MAX_IN_3D);
     const visIds = new Set(sorted.map((i) => i.id));
     const vis = sorted.map((i) => cards.get(i.id)).filter(Boolean);
@@ -380,7 +542,24 @@ export function createScene(container, { years = [], coreLabel = "", onSelect = 
       if (existing) existing.item = it;
       else cards.set(it.id, makeCard(it));
     });
-    relayout(!lastFrame);
+    relayout(false);
+  }
+  // Enter the galaxy (after sign-in): cards fly in, camera pulls back.
+  function reveal() {
+    if (revealed) return;
+    revealed = true;
+    focused = false;
+    controls.enabled = true;
+    relayout(true);
+  }
+  // Back to the logo-only intro view (signed out).
+  function conceal() {
+    revealed = false;
+    focused = false;
+    controls.enabled = false;
+    controls.autoRotate = false;
+    relayout(false);
+    camAnim = { pos: INTRO_POS.clone(), target: new THREE.Vector3(0, 0, 0) };
   }
   function setFilter(fn) { filterFn = fn; relayout(false); }
   function setLayout(name) { layout = name; focused = false; relayout(true); }
@@ -471,10 +650,12 @@ export function createScene(container, { years = [], coreLabel = "", onSelect = 
     const cs = THREE.MathUtils.lerp(core.scale.x, Math.max(0.001, coreTargetScale), k);
     core.scale.setScalar(cs);
     core.visible = cs > 0.02;
-    coreOuter.rotation.y += dt * 0.25; coreOuter.rotation.x += dt * 0.1;
-    coreInner.rotation.y -= dt * 0.5; coreInner.rotation.z += dt * 0.2;
+    updateLogo(dt, t);
+    // the logo always turns to face the camera (with a gentle sway) so "CU" never reads backwards
+    logo.rotation.y = Math.atan2(camera.position.x, camera.position.z) + Math.sin(t * 0.45) * 0.28;
+    logo.rotation.x = -Math.atan2(camera.position.y, Math.hypot(camera.position.x, camera.position.z)) * 0.6;
     ringA.rotation.z += dt * 0.3; ringB.rotation.z -= dt * 0.22;
-    glow.material.opacity = 0.75 + Math.sin(t * 1.7) * 0.2;
+    if (!revealed && !camAnim) camera.position.lerp(INTRO_POS, k * 0.35);
     stars.rotation.y += dt * 0.004;
     dust.rotation.y -= dt * 0.012;
     dust.rotation.x = Math.sin(t * 0.05) * 0.1;
@@ -496,5 +677,5 @@ export function createScene(container, { years = [], coreLabel = "", onSelect = 
   }
   requestAnimationFrame(tick);
 
-  return { setItems, setFilter, setLayout, focus, release, resetView };
+  return { setItems, setFilter, setLayout, focus, release, resetView, reveal, conceal, introDone };
 }

@@ -10,7 +10,10 @@ with friends, tag people, heart memories, and explore everything in 3D.
 - **Tag friends** — click a tag to see every memory with that person
 - **Search** (press `/`) by name, caption, moment
 - **Gallery view** — a normal photo grid, for phones and quick browsing
-- **College-only uploads** — only `@chitkara.edu.in` Google accounts can add photos (enforced by security rules, not just the UI)
+- **Chitkara-only** — the whole site is behind Google sign-in with `@chitkara.edu.in` accounts (enforced by security rules)
+- **3D shard logo intro** — 2,000 pieces assemble into the CU medallion
+- **Admin panel** — users, full activity log, who downloaded what, reports, delete photos, ban users, CSV export
+- **Report button** and **Story mode** (auto-tour of memories, press space)
 - **Demo mode** — works with sample photos until you add Firebase keys
 - Runs 100% free: GitHub Pages + Firebase Spark (free) plan, optional free Cloudinary
 
@@ -79,6 +82,27 @@ The free plan gives 1 GB, roughly 2,000–4,000 photos. Fine for one batch.
 - Share the link in the batch group 🎉
 
 ---
+
+## Login gate & admin panel
+
+- **Nobody sees anything without signing in.** Only `@chitkara.edu.in` Google accounts get in. If someone tries another
+  email, their sign-in is removed from Firebase immediately and they're told to use their Chitkara email.
+  This is enforced by `firestore.rules` on Google's servers, not just hidden in the page.
+- **Admins** are listed in two places that must match: `ADMIN_EMAILS` in `js/config.js` and `isAdmin()` in
+  `firestore.rules`. Admins can sign in with any email using the small **Admin sign-in** link under the main button.
+- The **Admin** button (top right, admins only) opens the panel:
+  - **Overview:** students, memories, downloads, open reports, bans, latest activity, most downloaded photos
+  - **Users:** everyone who has signed in, with joined date, last active, logins, uploads, downloads,
+    how often their photos were downloaded, likes, and last device. Click **Details** for one person's full history.
+  - **Activity:** every sign-in, upload, download, like, report and delete, with who, which photo and which device.
+    Filter, search, and **Export CSV**.
+  - **Photos:** every photo with uploader, hearts and who downloaded it, plus **Delete**.
+  - **Reports:** photos students reported, with reason. Delete the photo or dismiss the report.
+  - **Ban / unban** a user from their Details page. Banned users are locked out right away.
+- Students are told on the sign-in screen that their activity on the site is recorded.
+
+**What download tracking can and can't see:** it records every use of the **Download** button. It can't detect
+screenshots or someone saving the image from the browser.
 
 ## Customising
 

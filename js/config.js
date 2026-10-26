@@ -35,12 +35,14 @@ export const FIREBASE_CONFIG = {
   measurementId: "G-MYRWHWGCQK",
 };
 
-// 2) Only Google accounts from this domain can upload. "" = anyone with Google.
+// 2) Only Google accounts from this domain can enter the site at all.
 export const ALLOWED_EMAIL_DOMAIN = "chitkara.edu.in";
 
-// 3) These emails can delete anyone's photo (moderators).
+// 3) Admins: can open the Admin panel, see all activity, delete any photo and ban users.
+//    Admins may sign in even if their email is not @chitkara.edu.in.
+//    Keep this list identical to ADMINS in firestore.rules.
 export const ADMIN_EMAILS = [
-  // "yourname@chitkara.edu.in",
+  "kiratveersinghralhan@gmail.com",
 ];
 
 // 4) OPTIONAL (recommended): free Cloudinary account for full-quality photos.

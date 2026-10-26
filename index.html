@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Chitkara Memories · BBA DS &amp; BM</title>
-  <meta name="description" content="A 3D memory galaxy for the BBA Digital Science &amp; Business Management batch at Chitkara University. Upload and relive every year together." />
+  <meta name="description" content="A 3D memory galaxy for the BBA Digital Science &amp; Business Management batch at Chitkara University." />
   <meta name="theme-color" content="#06051a" />
   <meta property="og:title" content="Chitkara Memories · BBA DS & BM" />
-  <meta property="og:description" content="Our batch's memories, floating in 3D. Click, explore, add yours." />
+  <meta property="og:description" content="Our batch's memories, floating in 3D. Sign in with your Chitkara email." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ff4d6d'/%3E%3Cstop offset='1' stop-color='%237c5cff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Ctext x='32' y='42' font-family='Arial' font-weight='700' font-size='26' text-anchor='middle' fill='white'%3ECU%3C/text%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -22,24 +22,31 @@
     }
   </script>
 </head>
-<body>
-  <!-- intro loader -->
-  <div id="loader" class="loader">
-    <div class="loader-inner">
-      <div class="loader-mark">CU</div>
-      <h1 class="loader-title">Chitkara <span>Memories</span></h1>
-      <p class="loader-sub">BBA · Digital Science &amp; Business Management</p>
-      <div class="loader-bar"><i></i></div>
-      <p class="loader-hint" id="loaderHint">Developing the photos…</p>
-    </div>
-  </div>
-
+<body class="locked">
   <!-- 3D stage -->
   <div id="stage" aria-label="3D memory galaxy"></div>
   <div id="noWebgl" class="no-webgl" hidden>
     <div>
       <p>Your device can't show the 3D view, but every memory is still here.</p>
       <button class="btn btn-primary" data-open-gallery>Open the gallery</button>
+    </div>
+  </div>
+
+  <!-- intro + sign-in gate -->
+  <div id="intro" class="intro">
+    <div class="intro-bottom">
+      <h1 class="intro-title" id="introTitle">Chitkara Memories</h1>
+      <p class="intro-sub">BBA · Digital Science &amp; Business Management · Chitkara University</p>
+      <p class="intro-status" id="introStatus">Assembling memories…</p>
+      <div id="gate" class="gate glass-strong" hidden>
+        <p class="gate-lead">This space is only for our batch.</p>
+        <button class="btn google-btn btn-big" id="gateSignIn">
+          <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
+          <span id="gateSignInLabel">Sign in with your Chitkara email</span>
+        </button>
+        <p class="gate-note">Only <b>@chitkara.edu.in</b> accounts can enter. To keep everyone safe, sign-ins, uploads, downloads, likes and reports are recorded and visible to admins.</p>
+        <button class="link-btn" id="gateAdmin">Admin sign-in</button>
+      </div>
     </div>
   </div>
 
@@ -61,19 +68,22 @@
       <button class="icon-btn glass" data-open-gallery title="Gallery view" aria-label="Open gallery view">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
       </button>
+      <button class="admin-btn" id="adminBtn" title="Admin panel" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>
+        <span>Admin</span>
+      </button>
       <div id="authArea" class="auth-area"></div>
     </div>
   </header>
 
-  <!-- demo banner -->
   <div id="demoBanner" class="demo-banner glass" hidden>
-    <b>Demo mode</b> · sample memories only — add your Firebase keys in <code>js/config.js</code> to go live.
+    <b>Demo</b> · sample memories and fake activity, so you can try the admin panel
   </div>
 
   <!-- bottom HUD -->
   <div class="hud-left">
     <div class="stats" id="stats"></div>
-    <div class="hint">Drag to orbit · scroll to zoom · click a polaroid</div>
+    <div class="hint">Drag to orbit · scroll to zoom · click a polaroid · space for story mode</div>
   </div>
   <nav class="layout-dock glass" id="layoutDock" aria-label="Change 3D layout"></nav>
   <button class="fab" id="uploadFab">
@@ -82,6 +92,15 @@
   </button>
 
   <div id="hoverTip" class="hover-tip glass" hidden></div>
+
+  <!-- story mode caption -->
+  <div id="storyCard" class="story-card glass-strong" hidden>
+    <div class="story-progress"><i id="storyBar"></i></div>
+    <span class="tag year" id="storyYear"></span>
+    <h2 id="storyCaption"></h2>
+    <p id="storyMeta"></p>
+    <button class="btn btn-sm" id="storyStop">Stop story</button>
+  </div>
 
   <!-- lightbox -->
   <div id="lightbox" class="overlay lightbox" role="dialog" aria-modal="true" aria-label="Memory" hidden>
@@ -100,7 +119,8 @@
         <div class="lb-actions">
           <button class="btn btn-like" id="lbLike"><span class="heart">♥</span> <span id="lbLikeCount">0</span></button>
           <button class="btn" id="lbShare">Copy link</button>
-          <a class="btn" id="lbDownload" download target="_blank" rel="noopener">Download</a>
+          <button class="btn" id="lbDownload">Download</button>
+          <button class="btn btn-quiet" id="lbReport">Report</button>
           <button class="btn btn-danger" id="lbDelete" hidden>Delete</button>
         </div>
         <p class="lb-count" id="lbCount"></p>
@@ -113,8 +133,7 @@
     <form class="modal glass-strong" id="uploadForm">
       <button type="button" class="close-btn" data-close aria-label="Close">×</button>
       <h2 id="uploadTitle">Add a memory</h2>
-      <p class="muted">Pick photos with your friends. Everything you add here floats into the galaxy for the whole batch.</p>
-
+      <p class="muted">Pick photos with your friends. Everything you add here floats into the galaxy for the whole batch. Only post photos your friends are happy to share.</p>
       <label class="dropzone" id="dropzone">
         <input type="file" id="fileInput" accept="image/*" multiple />
         <span class="dz-icon">📸</span>
@@ -122,7 +141,6 @@
         <small id="dzLimit">Up to 10 at once · JPG, PNG, WebP</small>
       </label>
       <div class="previews" id="previews"></div>
-
       <div class="field">
         <label for="captionInput">Caption</label>
         <input id="captionInput" maxlength="120" placeholder="e.g. Maggi at 2am before the exam" />
@@ -158,15 +176,51 @@
     <div id="galleryBody" class="gallery-body"></div>
   </aside>
 
-  <!-- confirm dialog -->
-  <div id="confirmBox" class="overlay" role="alertdialog" aria-modal="true" aria-labelledby="confirmMsg" hidden>
-    <div class="modal glass-strong confirm-card">
-      <p id="confirmMsg"></p>
+  <!-- admin panel -->
+  <div id="adminPanel" class="admin" role="dialog" aria-modal="true" aria-label="Admin panel" hidden>
+    <header class="admin-head">
+      <div class="admin-title">
+        <span class="brand-mark">CU</span>
+        <div><strong>Admin panel</strong><small id="adminWho"></small></div>
+      </div>
+      <nav class="admin-tabs" id="adminTabs"></nav>
+      <div class="admin-tools">
+        <button class="btn btn-sm" id="adminRefresh">Refresh</button>
+        <button class="close-btn" id="adminClose" aria-label="Close admin panel">×</button>
+      </div>
+    </header>
+    <main class="admin-body" id="adminBody"></main>
+  </div>
+
+  <!-- blocked (wrong email / banned) -->
+  <div id="blockedBox" class="overlay" role="alertdialog" aria-modal="true" aria-labelledby="blockedTitle" hidden>
+    <div class="modal glass-strong blocked-card">
+      <div class="blocked-icon">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+      </div>
+      <h2 id="blockedTitle">Chitkara accounts only</h2>
+      <p id="blockedMsg"></p>
       <div class="confirm-actions">
-        <button class="btn" id="confirmNo">Cancel</button>
-        <button class="btn btn-primary" id="confirmYes">OK</button>
+        <button class="btn" id="blockedClose">Close</button>
+        <button class="btn btn-primary" id="blockedRetry">Sign in with Chitkara email</button>
       </div>
     </div>
+  </div>
+
+  <!-- generic dialog -->
+  <div id="dialogBox" class="overlay" role="alertdialog" aria-modal="true" aria-labelledby="dialogTitle" hidden>
+    <form class="modal glass-strong dialog-card" id="dialogForm">
+      <h3 id="dialogTitle"></h3>
+      <p id="dialogMsg" class="muted"></p>
+      <div id="dialogChoices" class="dialog-choices"></div>
+      <div class="field" id="dialogInputWrap" hidden>
+        <input id="dialogInput" maxlength="200" />
+      </div>
+      <div class="confirm-actions">
+        <button type="button" class="btn" id="dialogNo">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="dialogYes">OK</button>
+      </div>
+    </form>
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

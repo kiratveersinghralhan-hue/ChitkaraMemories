@@ -20,7 +20,8 @@ service cloud.firestore {
       return signedIn()
         && request.auth.token.email_verified == true
         && email() in [
-          'kiratveersinghralhan@gmail.com'
+          'kiratveersinghralhan@gmail.com',
+          'kiratveer4791.bbadsbm26@chitkara.edu.in'
         ];
     }
     function isMember() {

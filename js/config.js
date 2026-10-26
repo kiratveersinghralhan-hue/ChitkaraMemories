@@ -43,6 +43,7 @@ export const ALLOWED_EMAIL_DOMAIN = "chitkara.edu.in";
 //    Keep this list identical to ADMINS in firestore.rules.
 export const ADMIN_EMAILS = [
   "kiratveersinghralhan@gmail.com",
+  "kiratveer4791.bbadsbm26@chitkara.edu.in",
 ];
 
 // 4) OPTIONAL (recommended): free Cloudinary account for full-quality photos.

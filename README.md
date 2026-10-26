@@ -1,128 +1,104 @@
 # Chitkara Memories 🌌
 
-A 3D "memory galaxy" for the **BBA · Digital Science & Business Management** batch at Chitkara University.
-Every photo becomes a floating polaroid. Students sign in with their college Google account, upload photos
-with friends, tag people, heart memories, and explore everything in 3D.
+A private 3D "memory galaxy" for our **BBA · Digital Science & Business Management** class at Chitkara University.
+Every photo floats as a polaroid. Only approved classmates can get in.
 
-- **5 interactive 3D layouts** — Galaxy, Helix, Sphere, Wall, Timeline (keys `1`–`5`)
-- **Year filters** — 1st Year, 2nd Year, 3rd Year, Farewell (rename them in `js/config.js`)
-- **Click a polaroid** → camera flies to it → full-size view with caption, tagged friends, hearts, download, share link
-- **Tag friends** — click a tag to see every memory with that person
-- **Search** (press `/`) by name, caption, moment
-- **Gallery view** — a normal photo grid, for phones and quick browsing
-- **Chitkara-only** — the whole site is behind Google sign-in with `@chitkara.edu.in` accounts (enforced by security rules)
-- **3D shard logo intro** — 2,000 pieces assemble into the CU medallion
-- **Admin panel** — users, full activity log, who downloaded what, reports, delete photos, ban users, CSV export
-- **Report button** and **Story mode** (auto-tour of memories, press space)
-- **Demo mode** — works with sample photos until you add Firebase keys
-- Runs 100% free: GitHub Pages + Firebase Spark (free) plan, optional free Cloudinary
+## What's inside
+
+**The galaxy**
+- 3D shard-logo intro, plus a live 3D metallic logo in the top-left corner
+- 6 layouts: Galaxy, Helix, Sphere, **Albums** (each trip/event is its own cluster), Wall, Timeline (keys `1`–`6`)
+- Year filters, search (`/`), gallery view grouped by year or album
+- **Story mode** (space bar) and the **Farewell film**: fullscreen, a title card per year, built-in soundtrack or your own song
+
+**Memories**
+- Upload up to 10 photos at once with caption, year, moment, **album**, and **friend tags linked to real accounts**
+- Hearts, **emoji reactions** (😂 🔥 💀 🥹 😍 👏) and **comments**
+- **Memory of the day / On this day** card when you open the site
+- A nudge for people who haven't added a memory yet
+
+**Our batch** (book icon, top right)
+- **Yearbook**: a page for everyone with nickname, quote, "most likely to…", Instagram, and every memory they're tagged in
+- **Leaderboard**: memory makers, crowd favourites, always in the frame, reaction magnets, most loved photos
+- **Time capsule**: letters to future you (private) or to the batch, sealed until unlock day (default 1 May 2029)
+
+**Safety**
+- Only `@chitkara.edu.in` Google accounts can sign in. Other emails are removed instantly.
+- **On top of that, everyone must be approved.** New people send a request with a note; an admin approves or denies it.
+  Approved people get an email and then log in normally.
+- Admins can **pre-approve** a list of classmate emails, so they never have to wait.
+- Downloads carry a small **"saved by [name]" watermark** and are logged. Right-click / long-press saving is blocked.
+- **Report** button on every photo. **Ban** and **remove access** from the admin panel.
+- All of this is enforced by `firestore.rules` on Google's servers, not just hidden in the page.
+
+**Admin panel** (shield button, admins only)
+Overview · **Access** (requests, pre-approve, decided) · Users · Activity (every sign-in, upload, download, like,
+comment, report, delete, with device; export CSV) · Photos · Reports · **Share** (site link, WhatsApp message, QR poster)
+
+**Install as app**: on Android/desktop Chrome an install button appears in the top bar. On iPhone: Share → Add to Home Screen.
 
 ---
 
-## Project structure
+## Files
 
 ```
-index.html          page layout
-css/style.css       all styling
-js/config.js        ← the only file you need to edit
-js/app.js           buttons, filters, upload, lightbox, gallery
-js/scene.js         the Three.js 3D world
-js/store.js         Firebase login + database (and demo mode)
-firestore.rules     security rules to paste into Firebase
+index.html             page layout
+css/style.css          all styling
+js/config.js           ← settings you edit
+js/app.js              main UI
+js/scene.js            the 3D galaxy + intro
+js/logo3d.js           top-left metallic logo
+js/store.js            Firebase login, database, approvals
+js/admin.js            admin panel
+js/batch.js            yearbook, leaderboard, time capsule
+js/film.js             farewell film music
+js/share.js            QR poster + WhatsApp message
+firestore.rules        security rules to paste into Firebase
+manifest.webmanifest, sw.js, icons/   install-as-app
 ```
 
----
+## Updating your live site
 
-## Step 1 — Firebase (free Spark plan, ~10 min)
+1. Upload **all** files to the GitHub repo (replace the old ones; keep the folders).
+2. Firebase → Firestore Database → **Rules** → paste all of `firestore.rules` → **Publish**.
+3. Hard refresh the site (Ctrl + Shift + R).
 
-1. Go to <https://console.firebase.google.com> → **Add project** → name it `chitkara-memories` → you can turn off Google Analytics.
-2. **Build → Authentication → Get started → Sign-in method → Google → Enable** → pick a support email → Save.
-3. **Build → Firestore Database → Create database** → choose a location (`asia-south1` Mumbai is closest) → start in **production mode**.
-4. Open the **Rules** tab, delete what's there, paste everything from `firestore.rules`, click **Publish**.
-   - Add your own email inside `isAdmin()` if you want to be able to delete anyone's photo.
-5. **Project settings (⚙️) → General → Your apps → Web `</>`** → register app → copy the `firebaseConfig` values into `FIREBASE_CONFIG` in `js/config.js`.
-   (These keys are safe to be public — the security rules are what protect your data.)
-6. Also add your email to `ADMIN_EMAILS` in `js/config.js` so the Delete button shows for you.
+## Who gets in
 
-> **Why no Firebase Storage?** Firebase Storage now requires the paid Blaze plan, so this project doesn't use it.
-> Photos are saved either inside Firestore (compressed, free) or on Cloudinary (full quality, free) — see Step 2.
+Set in **two places that must match**:
 
-## Step 2 — Photo storage (pick one)
+| Want | `js/config.js` | `firestore.rules` |
+|---|---|---|
+| Everyone requests access (default, safest) | `AUTO_APPROVE_SUFFIX = ""` | `autoApproveRegex()` returns `''` |
+| Whole `bbadsbm26` batch gets in automatically | `AUTO_APPROVE_SUFFIX = ".bbadsbm26@chitkara.edu.in"` | `autoApproveRegex()` returns `'.*[.]bbadsbm26@chitkara[.]edu[.]in$'` |
 
-**Option A — do nothing (simplest).** Photos are compressed (~1400px) and saved inside Firestore: a tiny
-thumbnail for the 3D galaxy plus the full photo, which only downloads when someone opens it.
-The free plan gives 1 GB, roughly 2,000–4,000 photos. Fine for one batch.
+Admins are listed in `ADMIN_EMAILS` (config.js) and `isAdmin()` (rules). Admins can also sign in with a non-Chitkara
+email using the small **Admin sign-in** link.
 
-**Option B — Cloudinary (recommended for full quality).** Free tier = 25 GB.
-1. Sign up at <https://cloudinary.com> (free).
-2. **Settings → Upload → Upload presets → Add upload preset** → Signing mode: **Unsigned** → (optional) folder `chitkara-memories` → Save.
-3. Put your **cloud name** and the **preset name** into `CLOUDINARY` in `js/config.js`.
+## Approval emails (optional, free, ~5 minutes)
 
-## Step 3 — Host on GitHub Pages
+Without this, clicking **Approve** opens your own email app with the message already written; just press send.
+To send automatically:
 
-1. Create a new **public** repository on GitHub, e.g. `chitkara-memories`.
-2. Upload all the files (keep the folders), or with git:
-   ```bash
-   git init
-   git add .
-   git commit -m "Chitkara Memories"
-   git branch -M main
-   git remote add origin https://github.com/<your-username>/chitkara-memories.git
-   git push -u origin main
-   ```
-3. Repo **Settings → Pages → Source: Deploy from a branch → main / (root) → Save**.
-4. After ~1 minute the site is live at `https://<your-username>.github.io/chitkara-memories/`.
-5. **Important:** back in Firebase → **Authentication → Settings → Authorized domains → Add domain** → `<your-username>.github.io`.
-   Without this, Google sign-in shows an "unauthorized domain" error.
+1. Sign up at <https://www.emailjs.com> (free plan).
+2. **Email Services → Add service → Gmail** → connect the Gmail you want to send from.
+3. **Email Templates → Create template**:
+   - To email: `{{to_email}}`
+   - Subject: `You're in! {{site_name}} access approved`
+   - Body: `Hi {{to_name}}, your request was approved 🎉 Open {{site_url}} and sign in with your Chitkara email.`
+4. **Account → General**: copy your **Public key**. Copy the **Service ID** and **Template ID** too.
+5. Put the three values in `EMAILJS` in `js/config.js`.
 
-## Step 4 — Test it
+## First-time Firebase setup (already done)
 
-- Open the site → Sign in with your `@chitkara.edu.in` account → **Add memory** → upload a photo.
-- Open it on a second device: the photo appears live, no refresh needed.
-- Share the link in the batch group 🎉
+Authentication → Google enabled · Firestore created · rules published · `kiratveersinghralhan-hue.github.io` added to
+Authentication → Settings → Authorized domains.
 
----
+## Limits and good to know
 
-## Login gate & admin panel
-
-- **Nobody sees anything without signing in.** Only `@chitkara.edu.in` Google accounts get in. If someone tries another
-  email, their sign-in is removed from Firebase immediately and they're told to use their Chitkara email.
-  This is enforced by `firestore.rules` on Google's servers, not just hidden in the page.
-- **Admins** are listed in two places that must match: `ADMIN_EMAILS` in `js/config.js` and `isAdmin()` in
-  `firestore.rules`. Admins can sign in with any email using the small **Admin sign-in** link under the main button.
-- The **Admin** button (top right, admins only) opens the panel:
-  - **Overview:** students, memories, downloads, open reports, bans, latest activity, most downloaded photos
-  - **Users:** everyone who has signed in, with joined date, last active, logins, uploads, downloads,
-    how often their photos were downloaded, likes, and last device. Click **Details** for one person's full history.
-  - **Activity:** every sign-in, upload, download, like, report and delete, with who, which photo and which device.
-    Filter, search, and **Export CSV**.
-  - **Photos:** every photo with uploader, hearts and who downloaded it, plus **Delete**.
-  - **Reports:** photos students reported, with reason. Delete the photo or dismiss the report.
-  - **Ban / unban** a user from their Details page. Banned users are locked out right away.
-- Students are told on the sign-in screen that their activity on the site is recorded.
-
-**What download tracking can and can't see:** it records every use of the **Download** button. It can't detect
-screenshots or someone saving the image from the browser.
-
-## Customising
-
-| What | Where |
-|---|---|
-| Site name, subtitle, text on the 3D core | `SITE` in `js/config.js` |
-| Year names / adding "4th year" | `YEARS` in `js/config.js` **and** the `year in [...]` list in `firestore.rules` |
-| "Moment" options (Fest, Trip…) | `EVENTS` in `js/config.js` |
-| Allow any Google account | `ALLOWED_EMAIL_DOMAIN = ""` and simplify `isStudent()` in the rules |
-| Colours | CSS variables at the top of `css/style.css` |
-
-**Run locally:** the site uses ES modules, so open it through a local server instead of double-clicking:
-`python -m http.server 8000` then visit <http://localhost:8000>. (Add `localhost` to Firebase authorized domains — it's there by default.)
-
-## Good to know
-
-- Check the college email format: rules assume `something@chitkara.edu.in`. If student emails use a different domain, change it in both `config.js` and `firestore.rules`.
-- iPhone HEIC photos may not load in some browsers — iPhone Settings → Camera → Formats → **Most Compatible** fixes it.
-- Deleting a memory removes it from the site; with Cloudinary the file itself stays in your Cloudinary media library.
-- The site loads the newest 250 memories (`MAX_PHOTOS`). Each visit costs about that many Firestore reads, and the free
-  plan allows 50,000 reads/day — roughly 200 visits a day. If the whole batch is on it at once (farewell week!),
-  lower `MAX_PHOTOS` or upgrade to Blaze (pay-as-you-go, still very cheap at this scale).
-- Cloudinary (Option B) also saves Firestore bandwidth, since photos are served from Cloudinary's CDN.
+- Free Firestore plan: 50,000 reads and 20,000 writes per day. Each visit reads the newest 250 memories
+  (`MAX_PHOTOS`) plus profiles, so roughly 150–200 visits a day. Lower `MAX_PHOTOS` if the whole batch is on at once.
+- Download tracking covers the Download button. It can't see screenshots.
+- iPhone HEIC photos: iPhone Settings → Camera → Formats → **Most Compatible**.
+- The time capsule unlock date is in `CAPSULE_UNLOCK` (config.js) **and** `timestamp.date(2029, 5, 1)` in the rules.
+- Run locally: `python -m http.server 8000`, then open <http://localhost:8000>.

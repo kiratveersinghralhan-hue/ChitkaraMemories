@@ -46,7 +46,26 @@ export const ADMIN_EMAILS = [
   "kiratveer4791.bbadsbm26@chitkara.edu.in",
 ];
 
-// 4) OPTIONAL (recommended): free Cloudinary account for full-quality photos.
+// 4) Who gets in without waiting for approval.
+//    "" = EVERYONE must request access and an admin approves them (safest).
+//    ".bbadsbm26@chitkara.edu.in" = your whole batch gets in automatically, everyone else requests.
+//    If you set it, also set autoApproveRegex() in firestore.rules (instructions are there).
+export const AUTO_APPROVE_SUFFIX = "";
+
+// 5) OPTIONAL: approval emails via EmailJS (free: emailjs.com, ~200 emails/month).
+//    Leave empty and approving opens your email app with the message already written.
+//    Template variables available: {{to_name}}, {{to_email}}, {{site_url}}, {{site_name}}
+export const EMAILJS = {
+  publicKey: "",
+  serviceId: "",
+  templateId: "",
+};
+
+// 6) Time capsule letters to the batch unlock on this date (YYYY-MM-DD).
+//    Keep identical to the date in firestore.rules (capsules section).
+export const CAPSULE_UNLOCK = "2029-05-01";
+
+// 7) OPTIONAL (recommended): free Cloudinary account for full-quality photos.
 //    Leave empty and photos are compressed and saved inside Firestore instead.
 export const CLOUDINARY = {
   cloudName: "",

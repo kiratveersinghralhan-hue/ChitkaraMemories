@@ -1,9 +1,11 @@
 // Admin panel: overview, users, activity log, photos, reports. Only admins can load this data
 // (Firestore rules block everyone else even if they open the panel some other way).
-import { YEARS } from "./config.js";
+import { YEARS, SITE, EMAILJS, AUTO_APPROVE_SUFFIX } from "./config.js";
 import {
   adminLoad, adminBan, adminUnban, adminDismissReport, removeMemory, getUser,
+  adminSetMember, adminAllowEmails, adminUnallow, isDemo,
 } from "./store.js";
+import { renderShareTab, drawPoster, downloadPoster, siteUrl } from "./share.js";
 
 const aq = (s, r = document) => r.querySelector(s);
 const aesc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -18,11 +20,17 @@ const ACTION_META = {
   report: { label: "Reported", cls: "a-report" },
   ban: { label: "Banned", cls: "a-delete" },
   unban: { label: "Unbanned", cls: "a-login" },
+  comment: { label: "Commented", cls: "a-like" },
+  profile: { label: "Edited yearbook", cls: "a-login" },
+  capsule: { label: "Wrote capsule letter", cls: "a-login" },
+  approve: { label: "Approved access", cls: "a-upload" },
+  deny: { label: "Denied access", cls: "a-delete" },
+  allow: { label: "Pre-approved emails", cls: "a-upload" },
 };
 
 const A = {
   tab: "overview",
-  data: { users: [], activity: [], reports: [], bans: [] },
+  data: { users: [], activity: [], reports: [], bans: [], members: [], allowlist: [] },
   loaded: false,
   loading: false,
   userQuery: "",
@@ -150,15 +158,18 @@ const yearLabel = (id) => (YEARS.find((y) => y.id === id) || { label: id }).labe
 // ───────────────────────── render ─────────────────────────
 function renderAdmin() {
   const reportsN = A.data.reports.length;
+  const pendingN = A.data.members.filter((m) => m.status === "pending").length;
+  const badge = (id) => (id === "reports" && reportsN ? reportsN : id === "access" && pendingN ? pendingN : 0);
   aq("#adminTabs").innerHTML = [
-    ["overview", "Overview"], ["users", "Users"], ["activity", "Activity"], ["photos", "Photos"], ["reports", "Reports"],
-  ].map(([id, label]) => `<button class="a-tab ${A.tab === id ? "active" : ""}" data-tab="${id}">${label}${id === "reports" && reportsN ? `<span class="a-badge">${reportsN}</span>` : ""}</button>`).join("");
+    ["overview", "Overview"], ["access", "Access"], ["users", "Users"], ["activity", "Activity"], ["photos", "Photos"], ["reports", "Reports"], ["share", "Share"],
+  ].map(([id, label]) => `<button class="a-tab ${A.tab === id ? "active" : ""}" data-tab="${id}">${label}${badge(id) ? `<span class="a-badge">${badge(id)}</span>` : ""}</button>`).join("");
 
   const body = aq("#adminBody");
   if (!A.loaded && A.loading) { body.innerHTML = `<div class="a-empty">Loading everything…</div>`; return; }
   if (A.focusUid) { body.innerHTML = renderUserDetail(A.focusUid); return; }
-  const map = { overview: renderOverview, users: renderUsers, activity: renderActivity, photos: renderPhotos, reports: renderReports };
+  const map = { overview: renderOverview, access: renderAccess, users: renderUsers, activity: renderActivity, photos: renderPhotos, reports: renderReports, share: renderShareTab };
   body.innerHTML = (map[A.tab] || renderOverview)();
+  if (A.tab === "share") drawPoster();
 }
 
 function renderOverview() {
@@ -174,12 +185,13 @@ function renderOverview() {
     ["Students", users.length, `${activeToday} active today`],
     ["Memories", its.length, `${upToday} added today`],
     ["Downloads", dlTotal, `${dlToday} today`],
+    ["Access requests", A.data.members.filter((m) => m.status === "pending").length, "waiting for you"],
     ["Open reports", A.data.reports.length, A.data.reports.length ? "needs review" : "all clear"],
     ["Banned", A.data.bans.length, "accounts"],
   ];
   const topDl = Object.entries(downloadsByMemory()).sort((a, b) => b[1].length - a[1].length).slice(0, 5);
   return `
-    <div class="a-tiles">${tiles.map(([l, n, s]) => `<div class="a-tile ${l === "Open reports" && n ? "warn" : ""}"><span>${l}</span><b>${n}</b><small>${s}</small></div>`).join("")}</div>
+    <div class="a-tiles">${tiles.map(([l, n, s]) => `<div class="a-tile ${(l === "Open reports" || l === "Access requests") && n ? "warn" : ""}"><span>${l}</span><b>${n}</b><small>${s}</small></div>`).join("")}</div>
     <div class="a-cols">
       <section class="a-card"><h3>Latest activity</h3>${activityTable(act.slice(0, 12), true)}</section>
       <section class="a-card"><h3>Most downloaded</h3>${topDl.length ? topDl.map(([id, list]) => {
@@ -187,6 +199,78 @@ function renderOverview() {
         return `<button class="a-mem a-row" data-memory="${aesc(id)}" ${it ? "" : "disabled"}>${it ? `<img class="a-thumb" src="${aesc(it.thumb)}" alt="">` : `<span class="a-thumb a-gone">×</span>`}<span><b>${aesc(list[0].memoryCaption || "Untitled")}</b><small>by ${aesc(list[0].ownerName)}</small></span><em>${list.length}×</em></button>`;
       }).join("") : `<p class="muted">No downloads yet.</p>`}</section>
     </div>`;
+}
+
+function renderAccess() {
+  const pend = A.data.members.filter((m) => m.status === "pending").sort((a, b) => b.requestedAt - a.requestedAt);
+  const decided = A.data.members.filter((m) => m.status !== "pending").sort((a, b) => (b.decidedAt || 0) - (a.decidedAt || 0));
+  const rule = AUTO_APPROVE_SUFFIX
+    ? `Emails ending in <b>${aesc(AUTO_APPROVE_SUFFIX)}</b> get in automatically. Everyone else must request access.`
+    : `<b>Everyone</b> must request access, unless their email is pre-approved below.`;
+  return `
+    <section class="a-card access-rule">${rule} <span class="muted">Change this with AUTO_APPROVE_SUFFIX in config.js and firestore.rules.</span></section>
+    <section class="a-card">
+      <h3>Waiting for approval (${pend.length})</h3>
+      ${pend.length ? `<div class="req-list">${pend.map((m) => `
+        <div class="req">
+          ${who(m.name || m.email, m.email, m.uid)}
+          <div class="req-note">${m.note ? `“${aesc(m.note)}”` : `<span class="muted">No note</span>`}<small class="muted"> · asked ${ago(m.requestedAt)}</small></div>
+          <div class="a-actions">
+            <button class="btn btn-sm btn-primary" data-approve="${aesc(m.uid)}">Approve</button>
+            <button class="btn btn-sm btn-danger" data-deny="${aesc(m.uid)}">Deny</button>
+          </div>
+        </div>`).join("")}</div>` : `<p class="muted">No one is waiting. New requests appear here with a badge.</p>`}
+    </section>
+    <section class="a-card">
+      <h3>Pre-approve classmates by email</h3>
+      <p class="muted">Paste emails (one per line, or separated by commas). They'll get in straight away when they sign in.</p>
+      <textarea class="a-input share-msg" id="allowInput" rows="4" placeholder="name1234.bbadsbm26@chitkara.edu.in"></textarea>
+      <div class="a-actions"><button class="btn btn-sm btn-primary" data-allow>Pre-approve</button></div>
+      ${A.data.allowlist.length ? `<div class="allow-list">${A.data.allowlist.map((a) => `<span class="tchip">${aesc(a.email)}<button data-unallow="${aesc(a.email)}" aria-label="Remove">×</button></span>`).join("")}</div>` : ""}
+    </section>
+    <section class="a-card">
+      <h3>Decided (${decided.length})</h3>
+      ${decided.length ? `<div class="a-table-wrap"><table class="a-table"><thead><tr><th>Person</th><th>Status</th><th>Note</th><th>Decided</th><th></th></tr></thead><tbody>
+        ${decided.map((m) => `<tr><td>${who(m.name || m.email, m.email, m.uid)}</td>
+          <td><span class="a-pill ${m.status === "approved" ? "a-upload" : "a-delete"}">${m.status === "approved" ? "Approved" : "Denied"}</span></td>
+          <td><small>${aesc(m.note || "—")}</small></td><td>${ago(m.decidedAt)}</td>
+          <td>${m.status === "approved" ? `<button class="btn btn-sm btn-danger" data-deny="${aesc(m.uid)}">Remove access</button>` : `<button class="btn btn-sm" data-approve="${aesc(m.uid)}">Approve</button>`}</td></tr>`).join("")}
+      </tbody></table></div>` : `<p class="muted">Nothing yet.</p>`}
+    </section>`;
+}
+
+// Approval email: EmailJS when configured, otherwise the admin's own email app with the message written.
+let emailjsLoading = null;
+function loadEmailJs() {
+  if (window.emailjs) return Promise.resolve(window.emailjs);
+  if (!emailjsLoading) {
+    emailjsLoading = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@4.4.1/dist/email.min.js";
+      s.onload = () => (window.emailjs ? resolve(window.emailjs) : reject(new Error("EmailJS missing")));
+      s.onerror = () => reject(new Error("Couldn't load EmailJS"));
+      document.head.appendChild(s);
+    });
+  }
+  return emailjsLoading;
+}
+async function sendApprovalEmail(m) {
+  const name = (m.name || "there").split(" ")[0];
+  if (EMAILJS.publicKey && EMAILJS.serviceId && EMAILJS.templateId && !isDemo) {
+    try {
+      const ej = await loadEmailJs();
+      ej.init({ publicKey: EMAILJS.publicKey });
+      await ej.send(EMAILJS.serviceId, EMAILJS.templateId, { to_name: name, to_email: m.email, site_url: siteUrl(), site_name: SITE.title });
+      return "sent";
+    } catch (e) { console.warn("EmailJS", e); }
+  }
+  const subject = `You're in! ${SITE.title} access approved`;
+  const body = `Hi ${name},\n\nYour request to join ${SITE.title} was approved 🎉\n\nOpen ${siteUrl()} and sign in with your Chitkara email (${m.email}).\n\nSee you in the galaxy ✨`;
+  const href = `mailto:${encodeURIComponent(m.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const a = document.createElement("a");
+  a.href = href; a.target = "_blank"; a.rel = "noopener";
+  document.body.appendChild(a); a.click(); a.remove();
+  return "mailto";
 }
 
 function renderUsers() {
@@ -353,6 +437,40 @@ async function onBodyClick(e) {
   if (ds.user) { A.focusUid = ds.user; renderAdmin(); aq("#adminBody").scrollTop = 0; return; }
   if (ds.memory) { A.ctx.openMemory(ds.memory, { fly: false }); return; }
   if (ds.export !== undefined) { exportCsv(); return; }
+  if (ds.copy) {
+    const el = aq(ds.copy);
+    try { await navigator.clipboard.writeText(el.value); A.ctx.toast("Copied"); } catch (_) { el.select(); A.ctx.toast("Press Ctrl+C to copy"); }
+    return;
+  }
+  if (ds.poster !== undefined) { downloadPoster(); return; }
+  if (ds.approve) {
+    const m = A.data.members.find((x) => x.uid === ds.approve);
+    if (!m) return;
+    try {
+      await adminSetMember(m, "approved");
+      const how = await sendApprovalEmail(m);
+      A.ctx.toast(how === "sent" ? `Approved. ${m.email} has been emailed.` : `Approved. Send the email that just opened to let them know.`, 5000);
+      await loadAdmin();
+    } catch (err) { A.ctx.toast(err.message); }
+    return;
+  }
+  if (ds.deny) {
+    const m = A.data.members.find((x) => x.uid === ds.deny);
+    if (!m) return;
+    const res = await A.ctx.askDialog({ title: m.status === "approved" ? "Remove access?" : "Deny this request?", message: `${m.email} won't be able to see or post anything.`, ok: m.status === "approved" ? "Remove access" : "Deny", danger: true });
+    if (!res) return;
+    try { await adminSetMember(m, "denied"); A.ctx.toast("Done"); await loadAdmin(); } catch (err) { A.ctx.toast(err.message); }
+    return;
+  }
+  if (ds.allow !== undefined) {
+    const emails = aq("#allowInput").value.split(/[\s,;]+/);
+    try { const n = await adminAllowEmails(emails); A.ctx.toast(n ? `${n} email(s) pre-approved` : "No valid emails found"); if (n) await loadAdmin(); } catch (err) { A.ctx.toast(err.message); }
+    return;
+  }
+  if (ds.unallow) {
+    try { await adminUnallow(ds.unallow); await loadAdmin(); } catch (err) { A.ctx.toast(err.message); }
+    return;
+  }
 
   if (ds.delete) {
     const it = items().find((i) => i.id === ds.delete);

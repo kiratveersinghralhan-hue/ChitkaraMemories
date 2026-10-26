@@ -487,6 +487,37 @@ export function createScene(container, { years = [], coreLabel = "", onSelect = 
       const d = fitDist(cols * SX, rows * SY);
       return { pos: new THREE.Vector3(0, 0, d), target: new THREE.Vector3(0, 0, 0), auto: false, core: 0 };
     }
+    if (layout === "albums") {
+      // each album becomes its own little spiral cluster, clusters sit on a ring
+      const byAlbum = new Map();
+      vis.forEach((c) => {
+        const key = c.item.album || "Other moments";
+        if (!byAlbum.has(key)) byAlbum.set(key, []);
+        byAlbum.get(key).push(c);
+      });
+      const names = [...byAlbum.keys()].sort((a, b) => (a === "Other moments") - (b === "Other moments") || byAlbum.get(b).length - byAlbum.get(a).length);
+      const m = names.length;
+      const ringR = m <= 1 ? 0 : Math.max(13, (m * 9) / (Math.PI * 2));
+      const used = new Set();
+      names.forEach((name, ci) => {
+        const ang = (ci / Math.max(1, m)) * Math.PI * 2 - Math.PI / 2;
+        const cx = Math.cos(ang) * ringR; const cz = Math.sin(ang) * ringR;
+        const list = byAlbum.get(name);
+        list.forEach((c, k) => {
+          const a = k * 2.39996; const r = k === 0 ? 0 : 1.5 * Math.sqrt(k) + 0.6;
+          const x = cx + Math.cos(a) * r; const y = Math.sin(a) * r * 0.75; const z = cz + Math.sin(a * 0.5) * 0.6;
+          setTarget(c, x, y, z, [cx * 2.2, y * 1.2, cz * 2.2 + (m <= 1 ? 30 : 0)]);
+        });
+        const spread = 1.5 * Math.sqrt(list.length) + 2.4;
+        const label = albumLabel(name);
+        label.sprite.position.set(cx, spread * 0.75 + 1.4, cz);
+        label.targetOpacity = 1;
+        used.add(name);
+      });
+      albumLabels.forEach((l, name) => { if (!used.has(name)) l.targetOpacity = 0; });
+      const d = Math.max(30, ringR * 2.3 + 12);
+      return { pos: new THREE.Vector3(0, d * 0.5, d), target: new THREE.Vector3(0, 0, 0), auto: true, core: m <= 1 ? 0 : 0.8, albums: true };
+    }
     // timeline: one column block per year
     const groups = years.map(() => []);
     vis.forEach((c) => { const yi = yearIndex[c.item.year] ?? 0; groups[yi].push(c); });
@@ -507,6 +538,18 @@ export function createScene(container, { years = [], coreLabel = "", onSelect = 
     return { pos: new THREE.Vector3(0, cy, d), target: new THREE.Vector3(0, cy, 0), auto: false, core: 0, topY: top };
   }
 
+  // album name labels (created on demand)
+  const albumLabels = new Map();
+  function albumLabel(name) {
+    if (!albumLabels.has(name)) {
+      const s = textSprite(name, { size: 64, height: 1.15, glow: "rgba(45,226,230,.85)" });
+      s.material.opacity = 0;
+      scene.add(s);
+      albumLabels.set(name, { sprite: s, targetOpacity: 0 });
+    }
+    return albumLabels.get(name);
+  }
+
   let lastFrame = null;
   let revealed = false;
   function relayout(moveCamera) {
@@ -515,6 +558,7 @@ export function createScene(container, { years = [], coreLabel = "", onSelect = 
       pickables = [];
       coreTargetScale = 1;
       yearSprites.forEach((ys) => { ys.targetOpacity = 0; });
+      albumLabels.forEach((l) => { l.targetOpacity = 0; });
       return;
     }
     const sorted = allItems.filter(filterFn).slice(0, MAX_IN_3D);
@@ -527,6 +571,7 @@ export function createScene(container, { years = [], coreLabel = "", onSelect = 
     vis.forEach((c) => pickables.push(c.front, c.back));
     coreTargetScale = frame.core;
     yearSprites.forEach((ys) => { ys.targetOpacity = layout === "timeline" ? 1 : 0; });
+    if (!frame.albums) albumLabels.forEach((l) => { l.targetOpacity = 0; });
     if (!focused) controls.autoRotate = frame.auto;
     controls.maxDistance = Math.max(120, frame.pos.distanceTo(frame.target) * 1.4);
     if (moveCamera) camAnim = { pos: frame.pos.clone(), target: frame.target.clone() };
@@ -663,6 +708,10 @@ export function createScene(container, { years = [], coreLabel = "", onSelect = 
     yearSprites.forEach((ys) => {
       ys.sprite.material.opacity = THREE.MathUtils.lerp(ys.sprite.material.opacity, ys.targetOpacity, k);
       ys.sprite.visible = ys.sprite.material.opacity > 0.02;
+    });
+    albumLabels.forEach((l) => {
+      l.sprite.material.opacity = THREE.MathUtils.lerp(l.sprite.material.opacity, l.targetOpacity, k);
+      l.sprite.visible = l.sprite.material.opacity > 0.02;
     });
 
     if (camAnim) {

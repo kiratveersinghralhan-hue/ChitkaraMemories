@@ -9,6 +9,10 @@
   <meta property="og:title" content="Chitkara Memories · BBA DS & BM" />
   <meta property="og:description" content="Our batch's memories, floating in 3D. Sign in with your Chitkara email." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ff4d6d'/%3E%3Cstop offset='1' stop-color='%237c5cff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Ctext x='32' y='42' font-family='Arial' font-weight='700' font-size='26' text-anchor='middle' fill='white'%3ECU%3C/text%3E%3C/svg%3E" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -45,7 +49,24 @@
           <span id="gateSignInLabel">Sign in with your Chitkara email</span>
         </button>
         <p class="gate-note">Only <b>@chitkara.edu.in</b> accounts can enter. To keep everyone safe, sign-ins, uploads, downloads, likes and reports are recorded and visible to admins.</p>
+        <button class="btn btn-big" id="gateDemoStranger" hidden>Try as a new student (request access)</button>
         <button class="link-btn" id="gateAdmin">Admin sign-in</button>
+      </div>
+      <div id="pendingBox" class="gate glass-strong" hidden>
+        <div class="pending-who"><span id="pendingAvatar"></span><div><b id="pendingName"></b><small id="pendingEmail"></small></div></div>
+        <form id="pendingForm" class="pending-form">
+          <p class="gate-lead">Ask to join the class space</p>
+          <p class="gate-note">This site is only for our class. Tell the admin who you are, and you'll get an email once you're approved.</p>
+          <input id="pendingNote" maxlength="200" placeholder="e.g. Simran, Section A, roll no. 47" />
+          <button class="btn btn-primary btn-big" id="pendingSend" type="submit">Request access</button>
+        </form>
+        <div id="pendingSent" class="pending-sent" hidden>
+          <div class="pending-tick">✓</div>
+          <p class="gate-lead">Request sent</p>
+          <p class="gate-note">The admin will review it soon. You'll get an email when you're approved. If you keep this page open, it unlocks by itself.</p>
+          <p class="gate-note" id="pendingNoteShown"></p>
+        </div>
+        <button class="link-btn" id="pendingSignOut">Use a different account</button>
       </div>
     </div>
   </div>
@@ -53,7 +74,7 @@
   <!-- top bar -->
   <header class="topbar">
     <a class="brand" href="#" id="brandLink" title="Reset view">
-      <span class="brand-mark">CU</span>
+      <span class="brand-mark brand-3d" id="brandMark"><i>CU</i></span>
       <span class="brand-text">
         <strong id="siteTitle">Chitkara Memories</strong>
         <small id="siteSub">BBA · DS &amp; BM</small>
@@ -67,6 +88,12 @@
       </label>
       <button class="icon-btn glass" data-open-gallery title="Gallery view" aria-label="Open gallery view">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      </button>
+      <button class="icon-btn glass" id="batchBtn" title="Yearbook, leaderboard and time capsule" aria-label="Open the batch yearbook">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 8h6M9 12h4"/></svg>
+      </button>
+      <button class="icon-btn glass" id="installBtn" title="Install as an app" aria-label="Install as an app" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
       </button>
       <button class="admin-btn" id="adminBtn" title="Admin panel" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>
@@ -93,13 +120,32 @@
 
   <div id="hoverTip" class="hover-tip glass" hidden></div>
 
+  <button id="dailyCard" class="daily-card glass-strong" hidden>
+    <img id="dailyThumb" alt="" draggable="false" />
+    <span><small id="dailyLabel">Memory of the day</small><b id="dailyCaption"></b></span>
+    <span class="daily-x" id="dailyClose" aria-label="Dismiss">×</span>
+  </button>
+  <div id="nudgeCard" class="nudge-card glass-strong" hidden>
+    <span class="nudge-x" id="nudgeClose" role="button" aria-label="Dismiss">×</span>
+    <b>You haven't added a memory yet</b>
+    <p>Got a photo with the gang? Add it and tag your friends.</p>
+    <button class="btn btn-sm btn-primary" id="nudgeGo">Add my first memory</button>
+  </div>
+
+  <div id="filmTitle" class="film-title" hidden>
+    <h2 id="filmTitleText"></h2>
+    <p id="filmTitleSub"></p>
+  </div>
+  <button id="filmExit" class="film-exit" aria-label="Exit film">Exit film</button>
+  <input type="file" id="musicInput" accept="audio/*" hidden />
+
   <!-- story mode caption -->
   <div id="storyCard" class="story-card glass-strong" hidden>
     <div class="story-progress"><i id="storyBar"></i></div>
     <span class="tag year" id="storyYear"></span>
     <h2 id="storyCaption"></h2>
     <p id="storyMeta"></p>
-    <button class="btn btn-sm" id="storyStop">Stop story</button>
+    <div class="a-actions"><button class="btn btn-sm" id="storyFilm">🎬 Farewell film</button><button class="btn btn-sm" id="storyStop">Stop</button></div>
   </div>
 
   <!-- lightbox -->
@@ -123,6 +169,13 @@
           <button class="btn btn-quiet" id="lbReport">Report</button>
           <button class="btn btn-danger" id="lbDelete" hidden>Delete</button>
         </div>
+        <div class="lb-reactions" id="lbReactions"></div>
+        <div class="lb-comments-head">Comments <span id="lbCommentCount"></span></div>
+        <div class="lb-comments" id="lbComments"></div>
+        <form class="comment-form" id="commentForm">
+          <input id="commentInput" maxlength="300" placeholder="Write a comment…" autocomplete="off" />
+          <button class="btn btn-sm btn-primary" type="submit">Post</button>
+        </form>
         <p class="lb-count" id="lbCount"></p>
       </aside>
     </div>
@@ -156,8 +209,17 @@
         </div>
       </div>
       <div class="field">
-        <label for="peopleInput">Tag friends <span class="muted">(comma separated)</span></label>
-        <input id="peopleInput" placeholder="Aman, Simran, Harsh" />
+        <label for="albumInput">Album <span class="muted">(optional, e.g. Kasauli trip)</span></label>
+        <input id="albumInput" maxlength="40" list="albumList" placeholder="Group photos from one event" autocomplete="off" />
+        <datalist id="albumList"></datalist>
+      </div>
+      <div class="field">
+        <label for="peopleInput">Tag friends</label>
+        <div class="tagpick">
+          <div id="tagChips" class="tag-chips"></div>
+          <input id="peopleInput" placeholder="Type a classmate's name…" autocomplete="off" />
+          <div id="tagSuggest" class="tag-suggest" hidden></div>
+        </div>
       </div>
       <button type="submit" class="btn btn-primary btn-wide" id="uploadSubmit" disabled>Add to the galaxy ✨</button>
     </form>
@@ -173,6 +235,10 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="gallerySearch" type="search" placeholder="Search names, captions…" autocomplete="off" />
     </label>
+    <div class="drawer-sub">
+      <label for="galleryGroup" class="muted">Group by</label>
+      <select id="galleryGroup" class="a-input"><option value="year">Year</option><option value="album">Album</option></select>
+    </div>
     <div id="galleryBody" class="gallery-body"></div>
   </aside>
 
@@ -190,6 +256,19 @@
       </div>
     </header>
     <main class="admin-body" id="adminBody"></main>
+  </div>
+
+  <!-- batch panel: yearbook, leaderboard, time capsule -->
+  <div id="batchPanel" class="admin batch" role="dialog" aria-modal="true" aria-label="Batch yearbook" hidden>
+    <header class="admin-head">
+      <div class="admin-title">
+        <span class="brand-mark">CU</span>
+        <div><strong>Our batch</strong><small>BBA · DS &amp; BM</small></div>
+      </div>
+      <nav class="admin-tabs" id="batchTabs"></nav>
+      <div class="admin-tools"><button class="close-btn" id="batchClose" aria-label="Close">×</button></div>
+    </header>
+    <main class="admin-body" id="batchBody"></main>
   </div>
 
   <!-- blocked (wrong email / banned) -->
@@ -216,6 +295,7 @@
       <div class="field" id="dialogInputWrap" hidden>
         <input id="dialogInput" maxlength="200" />
       </div>
+      <textarea id="dialogArea" class="a-input share-msg" rows="4" maxlength="1000" hidden></textarea>
       <div class="confirm-actions">
         <button type="button" class="btn" id="dialogNo">Cancel</button>
         <button type="submit" class="btn btn-primary" id="dialogYes">OK</button>

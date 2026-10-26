@@ -1,0 +1,72 @@
+rules_version = '2';
+
+// Paste this into Firebase console → Firestore Database → Rules → Publish.
+//  • Anyone can VIEW memories (so the site works for visitors).
+//  • Only signed-in @chitkara.edu.in Google accounts can ADD or HEART them.
+//  • You can delete your own photos; admins can delete anything.
+// If you change the email domain, year ids or admins in js/config.js, change them here too.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isStudent() {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower().matches('.*@chitkara[.]edu[.]in$');
+    }
+    function isAdmin() {
+      return signedIn() && request.auth.token.email.lower() in [
+        // 'yourname@chitkara.edu.in'
+      ];
+    }
+
+    match /memories/{memoryId} {
+      allow read: if true;
+
+      allow create: if isStudent()
+        && request.resource.data.keys().hasOnly([
+             'url', 'thumb', 'w', 'h', 'caption', 'year', 'event', 'people',
+             'uploaderUid', 'uploaderName', 'uploaderPhoto', 'likedBy', 'createdAt'])
+        && request.resource.data.uploaderUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.likedBy == []
+        && request.resource.data.url is string && request.resource.data.url.size() <= 500
+        && request.resource.data.thumb is string && request.resource.data.thumb.size() <= 120000
+        && request.resource.data.caption is string && request.resource.data.caption.size() <= 120
+        && request.resource.data.event is string && request.resource.data.event.size() <= 40
+        && request.resource.data.year in ['y1', 'y2', 'y3', 'fw']
+        && request.resource.data.people is list && request.resource.data.people.size() <= 20
+        && request.resource.data.uploaderName is string && request.resource.data.uploaderName.size() <= 60;
+
+      // Hearts: a student may only add or remove their OWN uid from likedBy.
+      allow update: if isStudent()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy'])
+        && (
+          (!(request.auth.uid in resource.data.likedBy)
+            && request.resource.data.likedBy == resource.data.likedBy.concat([request.auth.uid]))
+          ||
+          ((request.auth.uid in resource.data.likedBy)
+            && request.resource.data.likedBy == resource.data.likedBy.removeAll([request.auth.uid]))
+        );
+
+      allow delete: if signedIn()
+        && (resource.data.uploaderUid == request.auth.uid || isAdmin());
+    }
+
+    // Full-size photos (only used when Cloudinary isn't configured).
+    // Loaded only when someone opens a memory, which keeps the free plan happy.
+    match /memoryFull/{memoryId} {
+      allow read: if true;
+      allow create: if isStudent()
+        && request.resource.data.keys().hasOnly(['data', 'uploaderUid'])
+        && request.resource.data.uploaderUid == request.auth.uid
+        && request.resource.data.data is string
+        && request.resource.data.data.size() < 1000000;
+      allow delete: if signedIn()
+        && (resource.data.uploaderUid == request.auth.uid || isAdmin());
+    }
+  }
+}

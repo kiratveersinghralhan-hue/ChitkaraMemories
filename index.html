@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Chitkara Memories · BBA DS &amp; BM</title>
+  <meta name="description" content="A 3D memory galaxy for the BBA Digital Science &amp; Business Management batch at Chitkara University. Upload and relive every year together." />
+  <meta name="theme-color" content="#06051a" />
+  <meta property="og:title" content="Chitkara Memories · BBA DS & BM" />
+  <meta property="og:description" content="Our batch's memories, floating in 3D. Click, explore, add yours." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ff4d6d'/%3E%3Cstop offset='1' stop-color='%237c5cff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Ctext x='32' y='42' font-family='Arial' font-weight='700' font-size='26' text-anchor='middle' fill='white'%3ECU%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <!-- intro loader -->
+  <div id="loader" class="loader">
+    <div class="loader-inner">
+      <div class="loader-mark">CU</div>
+      <h1 class="loader-title">Chitkara <span>Memories</span></h1>
+      <p class="loader-sub">BBA · Digital Science &amp; Business Management</p>
+      <div class="loader-bar"><i></i></div>
+      <p class="loader-hint" id="loaderHint">Developing the photos…</p>
+    </div>
+  </div>
+
+  <!-- 3D stage -->
+  <div id="stage" aria-label="3D memory galaxy"></div>
+  <div id="noWebgl" class="no-webgl" hidden>
+    <div>
+      <p>Your device can't show the 3D view, but every memory is still here.</p>
+      <button class="btn btn-primary" data-open-gallery>Open the gallery</button>
+    </div>
+  </div>
+
+  <!-- top bar -->
+  <header class="topbar">
+    <a class="brand" href="#" id="brandLink" title="Reset view">
+      <span class="brand-mark">CU</span>
+      <span class="brand-text">
+        <strong id="siteTitle">Chitkara Memories</strong>
+        <small id="siteSub">BBA · DS &amp; BM</small>
+      </span>
+    </a>
+    <nav class="chips" id="yearChips" aria-label="Filter by year"></nav>
+    <div class="top-actions">
+      <label class="search glass" title="Search (press /)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="searchInput" type="search" placeholder="Search names, captions…" autocomplete="off" />
+      </label>
+      <button class="icon-btn glass" data-open-gallery title="Gallery view" aria-label="Open gallery view">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      </button>
+      <div id="authArea" class="auth-area"></div>
+    </div>
+  </header>
+
+  <!-- demo banner -->
+  <div id="demoBanner" class="demo-banner glass" hidden>
+    <b>Demo mode</b> · sample memories only — add your Firebase keys in <code>js/config.js</code> to go live.
+  </div>
+
+  <!-- bottom HUD -->
+  <div class="hud-left">
+    <div class="stats" id="stats"></div>
+    <div class="hint">Drag to orbit · scroll to zoom · click a polaroid</div>
+  </div>
+  <nav class="layout-dock glass" id="layoutDock" aria-label="Change 3D layout"></nav>
+  <button class="fab" id="uploadFab">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    <span>Add memory</span>
+  </button>
+
+  <div id="hoverTip" class="hover-tip glass" hidden></div>
+
+  <!-- lightbox -->
+  <div id="lightbox" class="overlay lightbox" role="dialog" aria-modal="true" aria-label="Memory" hidden>
+    <button class="close-btn" data-close aria-label="Close">×</button>
+    <button class="lb-nav prev" id="lbPrev" aria-label="Previous">‹</button>
+    <button class="lb-nav next" id="lbNext" aria-label="Next">›</button>
+    <div class="lb-body">
+      <figure class="lb-figure">
+        <img id="lbImg" alt="" />
+      </figure>
+      <aside class="lb-info glass">
+        <div class="lb-tags" id="lbTags"></div>
+        <h2 id="lbCaption" class="lb-caption"></h2>
+        <div id="lbPeople" class="lb-people"></div>
+        <div class="lb-uploader" id="lbUploader"></div>
+        <div class="lb-actions">
+          <button class="btn btn-like" id="lbLike"><span class="heart">♥</span> <span id="lbLikeCount">0</span></button>
+          <button class="btn" id="lbShare">Copy link</button>
+          <a class="btn" id="lbDownload" download target="_blank" rel="noopener">Download</a>
+          <button class="btn btn-danger" id="lbDelete" hidden>Delete</button>
+        </div>
+        <p class="lb-count" id="lbCount"></p>
+      </aside>
+    </div>
+  </div>
+
+  <!-- upload -->
+  <div id="uploadPanel" class="overlay" role="dialog" aria-modal="true" aria-labelledby="uploadTitle" hidden>
+    <form class="modal glass-strong" id="uploadForm">
+      <button type="button" class="close-btn" data-close aria-label="Close">×</button>
+      <h2 id="uploadTitle">Add a memory</h2>
+      <p class="muted">Pick photos with your friends. Everything you add here floats into the galaxy for the whole batch.</p>
+
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" accept="image/*" multiple />
+        <span class="dz-icon">📸</span>
+        <span><b>Drop photos here</b> or tap to choose</span>
+        <small id="dzLimit">Up to 10 at once · JPG, PNG, WebP</small>
+      </label>
+      <div class="previews" id="previews"></div>
+
+      <div class="field">
+        <label for="captionInput">Caption</label>
+        <input id="captionInput" maxlength="120" placeholder="e.g. Maggi at 2am before the exam" />
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="yearSelect">Which year?</label>
+          <select id="yearSelect"></select>
+        </div>
+        <div class="field">
+          <label for="eventSelect">Moment</label>
+          <select id="eventSelect"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="peopleInput">Tag friends <span class="muted">(comma separated)</span></label>
+        <input id="peopleInput" placeholder="Aman, Simran, Harsh" />
+      </div>
+      <button type="submit" class="btn btn-primary btn-wide" id="uploadSubmit" disabled>Add to the galaxy ✨</button>
+    </form>
+  </div>
+
+  <!-- gallery drawer -->
+  <aside id="gallery" class="drawer glass-strong" aria-label="Gallery" hidden>
+    <div class="drawer-head">
+      <h2>Gallery</h2>
+      <button class="close-btn" data-close aria-label="Close gallery">×</button>
+    </div>
+    <label class="search glass drawer-search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="gallerySearch" type="search" placeholder="Search names, captions…" autocomplete="off" />
+    </label>
+    <div id="galleryBody" class="gallery-body"></div>
+  </aside>
+
+  <!-- confirm dialog -->
+  <div id="confirmBox" class="overlay" role="alertdialog" aria-modal="true" aria-labelledby="confirmMsg" hidden>
+    <div class="modal glass-strong confirm-card">
+      <p id="confirmMsg"></p>
+      <div class="confirm-actions">
+        <button class="btn" id="confirmNo">Cancel</button>
+        <button class="btn btn-primary" id="confirmYes">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
